@@ -50,7 +50,7 @@ go test -timeout 3m ${COVER} $@ ${NO_RACE_TEST}
 
 if [ -n "$INTEGRATION" ]; then
 	echo "Running integration tests..."
-	go test -timeout 3m $@ ${REPO_PATH}/integration
+	go test -v -timeout 3m $@ ${REPO_PATH}/integration
 fi
 
 echo "Checking gofmt..."
