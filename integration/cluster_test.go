@@ -434,6 +434,7 @@ func newListenerWithAddr(t *testing.T, addr string) net.Listener {
 		if err == nil {
 			break
 		}
+		fmt.Printf("net listen error: %v\n", err)
 		time.Sleep(500 * time.Millisecond)
 	}
 	if err != nil {

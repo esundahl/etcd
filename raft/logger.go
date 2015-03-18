@@ -46,7 +46,7 @@ func SetLogger(l Logger) { raftLogger = l }
 var (
 	defaultLogger = &DefaultLogger{Logger: log.New(os.Stderr, "", log.LstdFlags)}
 	discardLogger = &DefaultLogger{Logger: log.New(ioutil.Discard, "", 0)}
-	raftLogger    = Logger(defaultLogger)
+	raftLogger    = Logger(discardLogger)
 )
 
 const (
