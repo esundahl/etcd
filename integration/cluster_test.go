@@ -131,6 +131,7 @@ func testDecreaseClusterSize(t *testing.T, size int) {
 func TestForceNewCluster(t *testing.T) {
 	c := NewCluster(t, 3)
 	c.Launch(t)
+	println("create")
 	cc := mustNewHTTPClient(t, []string{c.Members[0].URL()})
 	kapi := client.NewKeysAPI(cc)
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -139,6 +140,7 @@ func TestForceNewCluster(t *testing.T) {
 		t.Fatalf("unexpected create error: %v", err)
 	}
 	cancel()
+	println("1st watch")
 	// ensure create has been applied in this machine
 	ctx, cancel = context.WithTimeout(context.Background(), requestTimeout)
 	if _, err := kapi.Watcher("/foo", &client.WatcherOptions{AfterIndex: resp.Node.ModifiedIndex - 1}).Next(ctx); err != nil {
@@ -146,17 +148,21 @@ func TestForceNewCluster(t *testing.T) {
 	}
 	cancel()
 
+	println("stop")
 	c.Members[0].Stop(t)
 	c.Members[1].Terminate(t)
 	c.Members[2].Terminate(t)
 	c.Members[0].ForceNewCluster = true
+	println("force new")
 	err = c.Members[0].Restart(t)
 	if err != nil {
 		t.Fatalf("unexpected ForceRestart error: %v", err)
 	}
 	defer c.Members[0].Terminate(t)
+	println("wait leader")
 	c.waitLeader(t, c.Members[:1])
 
+	println("2nd watch")
 	// use new http client to init new connection
 	cc = mustNewHTTPClient(t, []string{c.Members[0].URL()})
 	kapi = client.NewKeysAPI(cc)
@@ -166,6 +172,7 @@ func TestForceNewCluster(t *testing.T) {
 		t.Fatalf("unexpected watch error: %v", err)
 	}
 	cancel()
+	println("make progress")
 	clusterMustProgress(t, c.Members[:1])
 }
 
