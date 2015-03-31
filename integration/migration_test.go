@@ -15,34 +15,58 @@
 package integration
 
 import (
-	"github.com/coreos/etcd/pkg/types"
-	"net"
 	"os/exec"
 	"testing"
+	"time"
+
+	"github.com/coreos/etcd/client"
+
+	"github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context"
 )
 
 func TestUpgradeMember(t *testing.T) {
 	defer afterTest(t)
 	m := mustNewMember(t, "integration046")
-	newPeerListeners := make([]net.Listener, 0)
-	newPeerListeners = append(newPeerListeners, newListenerWithAddr(t, "127.0.0.1:59892"))
-	m.PeerListeners = newPeerListeners
-	urls, err := types.NewURLs([]string{"http://127.0.0.1:59892"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m.PeerURLs = urls
-	m.NewCluster = true
-	c := &cluster{}
-	c.Members = []*member{m}
-	fillClusterForMembers(c.Members, "etcd-cluster")
 	cmd := exec.Command("cp", "-r", "testdata/integration046_data/conf", "testdata/integration046_data/log", "testdata/integration046_data/snapshot", m.DataDir)
-	err = cmd.Run()
+	err := cmd.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	c.Launch(t)
-	defer c.Terminate(t)
-	clusterMustProgress(t, c.Members)
+	if err := m.Launch(); err != nil {
+		t.Fatal(err)
+	}
+	defer m.Terminate(t)
+	// wait member recovered
+	cc := mustNewHTTPClient(t, []string{m.URL()})
+	ma := client.NewMembersAPI(cc)
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		ms, err := ma.List(ctx)
+		cancel()
+		wmemb := client.Member{
+			// name and PeerURLs are inherited from old data dir
+			Name:       "integration046",
+			PeerURLs:   []string{"http://127.0.0.1:59892"},
+			ClientURLs: []string{m.URL()},
+		}
+		if err == nil && isMembersEqual(ms, []client.Member{wmemb}) {
+			break
+		}
+		time.Sleep(tickDuration)
+	}
+
+	// check the data has been migrated
+	ka := client.NewKeysAPI(cc)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	resp, err := ka.Get(ctx, "qux", nil)
+	cancel()
+	if err != nil {
+		t.Fatalf("watch error: %v", err)
+	}
+	if resp.Node.Value != "quux" {
+		t.Errorf("value(qux) = %s, want quux", resp.Node.Value)
+	}
+
+	clusterMustProgress(t, []*member{m})
 }
